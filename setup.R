@@ -59,7 +59,7 @@ traits <- mass_data |>
          "treatment_mmol",
          "species",
          "dry_whole_g",
-         "LDMC", "LMA") %>%
+         "LDMC", "LMA", "area_cm2") %>%
   merge(fluor, by="barcodeID")
 
 # Remove duplicate values

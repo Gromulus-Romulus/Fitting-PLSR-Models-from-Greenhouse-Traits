@@ -19,6 +19,7 @@ library(dplyr)
 library(tidyverse)
 library(rcartocolor)
 library(MetBrewer)
+library(prospectr)
 
 # - - - - - 
 # Read in input files and remove "date" column
@@ -113,30 +114,3 @@ plot_by_range(per_species_treatment, "FULL", FULL)
 plot_by_range(per_species_treatment, "VIS", VIS)
 plot_by_range(per_species_treatment, "NIR", NIR)
 plot_by_range(per_species_treatment, "SWIR", SWIR)
-
-# - - - - -
-# Plot of 2nd derivative transformation
-# calculate absorbance
-# TODO: smooth derivatives, review this paper:
-#   Source: https://academic.oup.com/jxb/article/63/1/489/560215
-spec_names <- colnames(spectra_wide)[6:ncol(spectra_wide)]
-
-# Filter out spectral matrix
-X <- spectra_wide %>% select(spec_names) %>%
-  as.matrix()
-
-d1 <- t(diff(t(X), differences = 1)) # first derivative
-d2 <- t(diff(t(X), differences = 2)) # second derivative
-plot(as.numeric(colnames(d1)), 
-     d1[1,], 
-     type = "l", 
-     lwd = 1.5, 
-     xlab = "Wavelength", 
-     ylab = "")
-
-lines(as.numeric(colnames(d2)), d2[1,], lwd = 1.5, col = "red")
-grid()
-legend("topleft", 
-       legend = c("1st der", "2nd der"), 
-       lty = c(1, 1),
-       col = c("black", "red"))

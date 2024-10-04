@@ -40,6 +40,9 @@ mass_data <- merge(mass_data, scans, by = "barcodeID")
 # Calculate LMA from Weight and Area Measurements (units = g / m2)
 mass_data$LMA <- ((mass_data$dry_leaf_g) / (mass_data$area_cm2)) * 100
 
+# Calculate EWT from weight and Area Measurements (units = g / m2)
+mass_data$EWT <- ((mass_data$wet_leaf_g - mass_data$dry_leaf_g) / (mass_data$area_cm2)) * 100
+
 # Load Fluorometry Data from Porometer and Rename Columns
 # Use Fs and Fm' to Calculate Quantum Yield of Fluorescence
 # Merge Porometer Measurements with Data Afterwards
@@ -56,7 +59,7 @@ traits <- mass_data |>
          "treatment_mmol",
          "species",
          "dry_whole_g",
-         "LDMC", "LMA", "area_cm2") %>%
+         "LDMC", "LMA", "EWT", "area_cm2") %>%
   merge(fluor, by="barcodeID")
 
 # Remove duplicate values

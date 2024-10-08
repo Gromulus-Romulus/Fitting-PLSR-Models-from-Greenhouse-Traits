@@ -9,7 +9,7 @@
 ##'   Reference: https://journals.ashs.org/hortsci/view/journals/hortsci/53/5/article-p669.xml
 ##' 
 ##' @author [Nicole Bison, Nathan Malamud]
-##' @date 2024.10.02
+##' @date [2024.10.02]
 ##' 
 ##' Source:
 ##'   https://github.com/MichaletzLab/pftc7_spectroscopy
@@ -19,7 +19,6 @@ library(dplyr)
 library(tidyverse)
 library(rcartocolor)
 library(MetBrewer)
-library(prospectr)
 
 # - - - - - 
 # Read in input files and remove "date" column

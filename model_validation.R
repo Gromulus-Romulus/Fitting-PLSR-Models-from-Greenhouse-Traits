@@ -1,17 +1,18 @@
-##' Model cross validation - calculate PRESS statistics.
+##' Model cross validation across traits, treatments, and species.
+##' TODO: clean up documentation with GPT.
+##' TODO: make this 3 separate scripts
 ##'
 ##' @author Nathan Malamud
-##' @date 2024.10.04
+##' @date 2024.10.08
 ##' 
 
 library(dplyr)
 library(tidyverse)
 library(prospectr)
 library(caret)
-library(spectratrait)
 library(pls)
 library(ggplot2)
-library(ggpubr)  # Load ggpubr for ggarrange
+library(ggpubr)
 
 # Load spectral matrices for PLSR model (made by signal_cleaning.R)
 signal.matrices <- readRDS("./data/signal.matrices.rds")
@@ -48,41 +49,39 @@ metadata <- traits %>%
 # Fit PLSR model using Shawn Serbin's demonstration code:
 # Documentation guide (Serbin et al. 2022): 
 #   https://github.com/plantphys/spectratrait/blob/main/spectratrait_1.2.5.pdf 
-plsr_data <- cbind(barcodeID, Y, X_d2) %>%
+plsr_data <- cbind(barcodeID, Y, X_d1) %>%
   as.data.frame()
 
-# Traits of interest
+# Traits and species of interest
 trait_ids <- c("LMA", "LDMC", "EWT")
+units_lookup <- c("LMA" = "g/m^2", "LDMC" = "mg/g", "EWT" = "g/m^2") 
 species_ids <- traits$species %>% unique()
 
 # Create a list to store plots
 p <- list()
 
-# TODO: this code does not work due to a misuse of the PLSR function
-# y fitted values are not being extracted correctly
+# Max iterations for SVD
+P_DIM = 10 
 
 # Iterate: for every model, one predicted trait
 for (t in trait_ids) {
-  
-  # TODO: Determine optimal number of components using PCA analysis
-  # Select 5 for now.
-  # (Q): number of principal components different for each trait?
-  P_DIM = 5 
   
   # Extract y and x matrices for model fitting
   y_obs = plsr_data[[t]]
   x = plsr_data[, spectral_columns] %>% as.matrix()
   
   # TODO: experiment with different cross validation methods
-  plsr_model <- plsr(y_obs ~ x, ncomp=P_DIM)
+  plsr_model <- plsr(y_obs ~ x, ncomp=P_DIM, validation="LOO")
   
-  # TODO: why are we outputing matrices, and not vectors???
+  # Which number of components worked best?
+  nComps <- selectNcomp(plsr_model, plot=F)
+  
   # Extract fitted values and observed values
-  y_hat <- predict(plsr_model, x, ncomp=P_DIM) %>% as.vector()
+  y_hat <- predict(plsr_model, x, ncomp=nComps) %>% as.vector()
   
-  # TODO: use metrics package
   # Calculate RMSEP and R2 values
   # Rounded to 3 decimal places
+  # TODO: Look at PRESS Statistics (Shawn Serbin paper)
   resids = y_obs - y_hat
   y_bar = mean(y_obs)
   RSS = sum(resids**2)
@@ -97,7 +96,7 @@ for (t in trait_ids) {
   plot <- ggplot(plot_data, aes(x = observed, y = predicted)) +
     geom_point(alpha = 0.7) +
     geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
-    labs(title = paste(t, "|", "RMSEP:", rmsep, ",", "R2:", r2, ",", "comp:", P_DIM),
+    labs(title = paste(t, "|", "RMSEP:", rmsep, ",", "R2:", r2, ",", "comp:",nComps),
          x = "Observed Values",
          y = "Predicted Values") +
     theme_minimal() +
@@ -110,14 +109,14 @@ for (t in trait_ids) {
 
 # Combine the plots into a 3 x 3 grid (or as many as needed)
 grid_plot <- ggarrange(plotlist = p, ncol = 3, nrow = 1, common.legend = TRUE)
-    # TODO: ggtitle(paste("PLSR Model Performance by Trait", "n=", length(plsr_data), "comps=", P_DIM))
 
 # Display the grid plot
+# TODO: look into plotting warnings
 print(grid_plot)
 
 # - - - - -
-# 2) TODO: Comparitive statistics using cross-validation
-# Calculate PRESS statistics, RMSEP, R2, for each model
+# 2) Comparative statistics using cross-validation
+# Calculate RMSEP, R2, for each model and cross-compare
 THRESH = 15 # mmol
 metadata$treatment_category <- ifelse(metadata$treatment_mmol > THRESH, "high", "low")
 
@@ -129,7 +128,7 @@ plsr_data_lo <- plsr_data %>%
 
 # Define the traits of interest
 trait_ids <- c("LMA", "LDMC", "EWT")
-P_DIM <- 5 # Number of components for PLSR
+P_DIM <- 10
 
 # Create a list to store plots for all traits
 p_list <- list()
@@ -147,14 +146,19 @@ for (t in trait_ids) {
   x_lo <- plsr_data_lo[, spectral_columns] %>% as.matrix()
   
   # 2) Fit PLSR models for each partition (calibrate to separate data sets)
-  plsr_model_full <- plsr(y_obs ~ x, ncomp = P_DIM)
-  plsr_model_hi <- plsr(y_obs_hi ~ x_hi, ncomp = P_DIM)
-  plsr_model_lo <- plsr(y_obs_lo ~ x_lo, ncomp = P_DIM)
   
-  # 3) Predict and extract fitted values for each model (fit to WHOLE data)
-  y_hat_full <- predict(plsr_model_full, x, ncomp = P_DIM) %>% as.vector()
-  y_hat_hi <- predict(plsr_model_hi, x, ncomp = P_DIM) %>% as.vector()
-  y_hat_lo <- predict(plsr_model_lo, x, ncomp = P_DIM) %>% as.vector()
+  # TODO: experiment with different cross validation methods
+  plsr_model_full <- plsr(y_obs ~ x, ncomp = P_DIM, validation="LOO")
+  plsr_model_hi <- plsr(y_obs_hi ~ x_hi, ncomp = P_DIM, validation="LOO")
+  plsr_model_lo <- plsr(y_obs_lo ~ x_lo, ncomp = P_DIM, validation="LOO")
+  
+   # Which number of components worked best?
+  nComps_full <- selectNcomp(plsr_model_full, plot=F)
+  
+  # 3) Predict and extract fitted values for each model (fit to WHOLE data)A
+  y_hat_full <- predict(plsr_model_full, x, ncomp = nComps_full) %>% as.vector()
+  y_hat_hi <- predict(plsr_model_hi, x, ncomp = nComps_full) %>% as.vector()
+  y_hat_lo <- predict(plsr_model_lo, x, ncomp = nComps_full) %>% as.vector()
   
   # 4) Calculate RMSEP, R², and PRESS statistics for each partition
   # Use a helper function to encapsulate the series of calculations
@@ -182,8 +186,8 @@ for (t in trait_ids) {
   plot_full <- ggplot(plot_data_full, aes(x = observed, y = predicted)) +
     geom_point(alpha = 0.7) +
     geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
-    labs(title = bquote(atop(.(t), atop("FULL", 
-                                        "RMSEP:" ~ .(stats_full$rmsep) ~ ", R2:" ~ .(stats_full$r2) ~ ", comp:" ~ .(P_DIM)))),
+    labs(title = bquote(atop(.(paste(t, "| all data (n=", nrow(plsr_data), ")")),
+                             atop("RMSEP:" ~ .(stats_full$rmsep) ~ ", R2:" ~ .(stats_full$r2) ~ ", comp:" ~ .(nComps_full)))),
          x = "Observed Values", y = "Predicted Values") +
     theme_minimal() +
     theme(plot.title = element_text(size = 10, hjust = 0.5)) +  # Adjust font size and center alignment
@@ -194,8 +198,8 @@ for (t in trait_ids) {
   plot_hi <- ggplot(plot_data_hi, aes(x = observed, y = predicted)) +
     geom_point(alpha = 0.7) +
     geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
-    labs(title = bquote(atop(.(t), atop("HI", 
-                                        "RMSEP:" ~ .(stats_hi$rmsep) ~ ", R2:" ~ .(stats_hi$r2) ~ ", comp:" ~ .(P_DIM)))),
+    labs(title = bquote(atop(.(paste(t, "| >", THRESH, "mmol (n=", nrow(plsr_data_hi), ")")),
+                             atop("RMSEP:" ~ .(stats_hi$rmsep) ~ ", R2:" ~ .(stats_hi$r2) ~ ", comp:" ~ .(nComps_full)))),
          x = "Observed Values", y = "Predicted Values") +
     theme_minimal() +
     theme(plot.title = element_text(size = 10, hjust = 0.5)) +  # Adjust font size and center alignment
@@ -206,8 +210,8 @@ for (t in trait_ids) {
   plot_lo <- ggplot(plot_data_lo, aes(x = observed, y = predicted)) +
     geom_point(alpha = 0.7) +
     geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
-    labs(title = bquote(atop(.(t), atop("LO", 
-                                        "RMSEP:" ~ .(stats_lo$rmsep) ~ ", R2:" ~ .(stats_lo$r2) ~ ", comp:" ~ .(P_DIM)))),
+    labs(title = bquote(atop(.(paste(t, "| <=", THRESH, "mmol (n=", nrow(plsr_data_lo), ")")),
+                             atop("RMSEP:" ~ .(stats_lo$rmsep) ~ ", R2:" ~ .(stats_lo$r2) ~ ", comp:" ~ .(nComps_full)))),
          x = "Observed Values", y = "Predicted Values") +
     theme_minimal() +
     theme(plot.title = element_text(size = 10, hjust = 0.5)) +  # Adjust font size and center alignment

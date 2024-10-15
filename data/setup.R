@@ -38,10 +38,11 @@ names(scans) <- c("barcodeID", "area_cm2")
 mass_data <- merge(mass_data, scans, by = "barcodeID")
 
 # Calculate LMA from Weight and Area Measurements (units = g / m2)
-mass_data$LMA <- ((mass_data$dry_leaf_g) / (mass_data$area_cm2)) * 100
+CONVERSION = 10000 # cm2 to m2
+mass_data$LMA <- ((mass_data$dry_leaf_g) / (mass_data$area_cm2)) * CONVERSION
 
 # Calculate EWT from weight and Area Measurements (units = g / m2)
-mass_data$EWT <- ((mass_data$wet_leaf_g - mass_data$dry_leaf_g) / (mass_data$area_cm2)) * 100
+mass_data$EWT <- ((mass_data$wet_leaf_g - mass_data$dry_leaf_g) / (mass_data$area_cm2)) * CONVERSION
 
 # Load Fluorometry Data from Porometer and Rename Columns
 # Use Fs and Fm' to Calculate Quantum Yield of Fluorescence

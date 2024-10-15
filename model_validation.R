@@ -129,7 +129,7 @@ for (t in trait_ids) {
     geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
     labs(title = bquote(atop(bold(.(paste(t, ": all data ( n =", nrow(plsr_data), ")"))),
                              atop("RMSEP:" ~ .(stats_full$rmsep) ~ ", R2:" ~ .(stats_full$r2) ~ ", comp:" ~ .(nComps_full)))),
-         x = "Observed", y = "Predicted") +
+         x = paste("Observed", units_lookup[[t]]), y = paste("Predicted", units_lookup[[t]])) +
     scale_color_manual(values = josef_colors) +
     theme_minimal() +
     theme(plot.title = element_text(size = 10, hjust = 0.5)) +
@@ -142,7 +142,7 @@ for (t in trait_ids) {
     geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
     labs(title = bquote(atop(bold(.(paste(t, ": >", THRESH, "mmol ( n =", nrow(plsr_data_hi), ")"))),
                              atop("RMSEP:" ~ .(stats_hi$rmsep) ~ ", R2:" ~ .(stats_hi$r2) ~ ", comp:" ~ .(nComps_full)))),
-         x = "Observed", y = "Predicted") +
+         x = paste("Observed", units_lookup[[t]]), y = paste("Predicted", units_lookup[[t]])) +
     scale_color_manual(values = josef_colors) +
     theme_minimal() +
     theme(plot.title = element_text(size = 10, hjust = 0.5)) +
@@ -155,7 +155,7 @@ for (t in trait_ids) {
     geom_abline(intercept = 0, slope = 1, color = "red", linetype = "dashed") +
     labs(title = bquote(atop(bold(.(paste(t, ": <=", THRESH, "mmol ( n =",  nrow(plsr_data_lo), ")"))),
                              atop("RMSEP:" ~ .(stats_lo$rmsep) ~ ", R2:" ~ .(stats_lo$r2) ~ ", comp:" ~ .(nComps_full)))),
-         x = "Observed", y = "Predicted") +
+         x = paste("Observed", units_lookup[[t]]), y = paste("Predicted", units_lookup[[t]])) +
     scale_color_manual(values = josef_colors) +
     theme_minimal() +
     theme(plot.title = element_text(size = 10, hjust = 0.5)) +

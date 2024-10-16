@@ -11,6 +11,7 @@ library(tidyverse)
 library(prospectr)
 library(caret)
 library(pls)
+library(plsVarSel) # Variable selection
 library(ggplot2)
 library(ggpubr)
 
@@ -49,7 +50,7 @@ metadata <- traits %>%
 # Fit PLSR model using Shawn Serbin's demonstration code:
 # Documentation guide (Serbin et al. 2022): 
 #   https://github.com/plantphys/spectratrait/blob/main/spectratrait_1.2.5.pdf 
-plsr_data <- cbind(barcodeID, Y, X_d1) %>%
+plsr_data <- cbind(barcodeID, Y, X_avg) %>%
   as.data.frame()
 
 # Traits and species of interest
@@ -66,7 +67,7 @@ mods <- list()
 P_DIM = 10 
 
 # Create a PDF device to save the plots
-pdf("Figures/PLSR_Loadings_Xd1.pdf", width = 10, height = 8.5)
+pdf("Figures/PLSR_VIP_Xavg.pdf", width = 10, height = 8.5)
 
 # TODO: move this loop to model_validation
 # Iterate: for every model, one predicted trait
@@ -122,17 +123,31 @@ for (t in trait_ids) {
   
   # Add plot to list of plots
   p[[t]] <- plot
+  # 
+  # # - - - use separately fit models to extract scores and loadings
+  # scores <- plsr_model$scores %>% as.matrix()
+  # loadings <- plsr_model$loadings %>% as.matrix()
+  # 
+  # plot(plsr_model, plottype = "loadings", comps = 1:3,
+  #      legendpos ="bottomright", labels="numbers", xlab="lambda (nm)",
+  #      col=c("black", "black", "red"))
+  # title(paste(t, "Loadings (first 3 components)"))
+  # 
+  # abline(h=0)
   
-  # - - - use separately fit models to extract scores and loadings
-  scores <- plsr_model$scores %>% as.matrix()
-  loadings <- plsr_model$loadings %>% as.matrix()
+  # Calculate VIP
+  vip_scores <- VIP(plsr_model, opt.comp = nComps)
   
-  plot(plsr_model, plottype = "loadings", comps = 1:3,
-       legendpos ="bottomright", labels="numbers", xlab="lambda (nm)",
-       col=c("black", "black", "red"))
-  title(paste(t, "Loadings (first 3 components)"))
+  vip_df <- data.frame(lambda = as.numeric(names(vip_scores)), VIP = vip_scores)
   
-  abline(h=0)
+  vip_plot <- ggplot(vip_df, aes(x = lambda, y = VIP)) +
+    geom_line(color="steelblue") +
+    labs(title = paste("VIP Scores for PLSR Model:", t), x = "lambda", y = "VIP Score") +
+    ylim(0, 8) +
+    theme_minimal() #%>% print()
+  
+  print(vip_plot) # To pdf
+  
 }
 
 dev.off()

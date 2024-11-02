@@ -19,6 +19,9 @@ FULL <- seq(500.0, 2400.0, .01)
 spectra_long <- read.csv("./data/spec_data_long.csv") |>
   select(-date) %>% filter(wavelength %in% FULL)
 
+spectra_wide <- read.csv("./data/spec_data_wide.csv") |>
+  select(-date)
+
 # Aggregate lambda values via rounding -> mean reflectance
 spectra_long$wavelength <- round(spectra_long$wavelength, 0)
 spectra_long_agg <- aggregate(
@@ -29,7 +32,7 @@ spectra_long_agg <- aggregate(
 # - - - 
 # Define parameters to estimate for PROSPECT-PRO engine
 #   Source: https://jbferet.gitlab.io/prospect/articles/prospect.html
-Parms2Estimate <- c('CHL', 'CAR', 'ANT', 'EWT', 'PROT', 'CBC')
+Parms2Estimate <- c('CHL', 'CAR', 'ANT', 'BROWN', 'N', 'PROT', 'CBC')
 
 # Create an empty list to store results for each leaf
 results_list <- list()
@@ -61,7 +64,7 @@ for (barcode in unique_barcodes) {
     CHL = OutPROSPECTPRO$CHL,
     CAR = OutPROSPECTPRO$CAR,
     ANT = OutPROSPECTPRO$ANT,
-    EWT = OutPROSPECTPRO$EWT,
+    N = OutPROSPECTPRO$N,
     PROT = OutPROSPECTPRO$PROT,
     CBC = OutPROSPECTPRO$CBC
   )
@@ -70,34 +73,30 @@ for (barcode in unique_barcodes) {
   results_list[[as.character(barcode)]] <- estimated_params
 }
 
-# Combine all results into a single dataframe
+# Combine all results into a single dataframe, merge with metadata
 final_results <- do.call(rbind, results_list)
+final_results <- merge(spectra_wide %>% select(barcodeID, sampleID, species, treatment_mmol),
+                       final_results, by = "barcodeID")
 
-# Merge with original data
-final_results <- merge(final_results, spectra_wide %>%
-                         select(barcodeID, sampleID, species, treatment_mmol), by = "barcodeID")
+# Create graph of how molecular content varies with nitrate treatment and across species
+molecule_colors <- c("CHL" = "#66c2a5",   # Soft green for Chlorophyll
+                     "CAR" = "#ffd92f",   # Yellow for Carotenoids
+                     "ANT" = "#d95f02"   # Red for anthocyanins
+                     )
 
-# - - -
-# Create graph of how molecular content varies with nitrate treatment
-# and across species
-# Define colors for each species
-species_colors <- c("R. sativus" = "#299680",      # Green
-                    "B. officinalis" = "#7570b2", # Blue
-                    "H. vulgare" = "#ca621c")     # Orange
-
+# Create the plot and save as a square PDF
+pdf("./figures/molecular_content_plot.pdf", width = 11, height = 5)  # Set width and height to keep aspect ratio square
 final_results %>%
-  pivot_longer(cols = c(CHL, CAR, ANT, EWT, PROT, CBC), names_to = "molecule", values_to = "value") %>%
-  ggplot(aes(x = as.factor(treatment_mmol), y = value, color = species)) +
-  geom_boxplot() +
-  facet_wrap(~molecule, scales = "free_y") +
-  scale_color_manual(values = species_colors) +  # Use the defined species colors
-  labs(title = "Molecular content vs. nitrate treatment",
-       x = "Nitrate treatment (mmol)",
-       y = "Molecular content") +
-  theme_minimal()
+  pivot_longer(cols = c(CHL, CAR, ANT), names_to = "molecule", values_to = "value") %>%
+  ggplot(aes(x = as.numeric(treatment_mmol), y = value, color = molecule)) +
+  geom_point(alpha = 0.6, position = position_jitter(width = 0.2, height = 0)) +
+  geom_smooth(method = "loess", se = TRUE) +  # Smooth lines with LOESS
+  facet_wrap(~species, scales = "free_y") +
+  scale_color_manual(values = molecule_colors) +  # Use updated colors for molecules
+  labs(x = "Nitrate treatment (mmol)", y = "Molecular content (μg cm^−2)", color = "Molecule") +
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Move legend to the bottom
+dev.off()  # Close the PDF device
 
-
-
-# - - - 
 # Write prospect model output to csv
-write.csv(final_results, file = "./prospect_rtm_output.csv", row.names = FALSE)
+write.csv(final_results, file = "./data/molecular_content.csv", row.names = FALSE)

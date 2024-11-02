@@ -50,7 +50,7 @@ metadata <- traits %>%
 # Fit PLSR model using Shawn Serbin's demonstration code:
 # Documentation guide (Serbin et al. 2022): 
 #   https://github.com/plantphys/spectratrait/blob/main/spectratrait_1.2.5.pdf 
-plsr_data <- cbind(barcodeID, Y, X_avg) %>%
+plsr_data <- cbind(barcodeID, Y, X_d1) %>%
   as.data.frame()
 
 # Traits and species of interest
@@ -67,7 +67,7 @@ mods <- list()
 P_DIM = 10 
 
 # Create a PDF device to save the plots
-pdf("Figures/PLSR_VIP_Xavg.pdf", width = 10, height = 8.5)
+pdf("Figures/PLSR_VIP_Xd1_comparison.pdf", width = 10, height = 8.5)
 
 # TODO: move this loop to model_validation
 # Iterate: for every model, one predicted trait
@@ -103,7 +103,7 @@ for (t in trait_ids) {
   press <- round(sum(plsr_model$validation$PRESS), 3)
   
   # Create a data frame for ggplot
-  plot_data <- data.frame(observed = y_obs, predicted = y_hat, species = metadata$species)
+  plot_data <- data.frame(observed = y_obs, predicted = y_hat, species = metadata$species, treatment_mmol = metadata$treatment_mmol)
   
   # Plot with color by species
   josef_colors <- c("#7570b2", "#ca621c", "#299680")  # Custom color palette for species
@@ -119,7 +119,7 @@ for (t in trait_ids) {
     coord_fixed(ratio = 1) +  # Keep the aspect ratio 1:1
     xlim(range(plot_data$observed)) +  # Set x limits based on observed data
     ylim(range(plot_data$observed)) +  # Set y limits based on observed data
-    scale_color_manual(values = josef_colors)  # Apply custom colors to species
+    scale_color_manual(values = josef_colors)
   
   # Add plot to list of plots
   p[[t]] <- plot
@@ -135,18 +135,63 @@ for (t in trait_ids) {
   # 
   # abline(h=0)
   
+  # Comparative statistics using cross-validation
+  # Calculate RMSEP, R2, PRESS for each model and cross-compare
+  THRESH = 15 # mmol
+  metadata$treatment_category <- ifelse(metadata$treatment_mmol > THRESH, "high", "low")
+  
+  plsr_data_hi <- plsr_data %>%
+    filter(metadata$treatment_category == "high") # 52 obs > 15 mmol
+  
+  plsr_data_lo <- plsr_data %>%
+    filter(metadata$treatment_category == "low") # 45 obs <= 15 mmol
+  
+  # 1) Define observed and spectral matrices for each partition
+  y_obs <- (plsr_data[[t]])
+  y_obs_hi <- plsr_data_hi[[t]]
+  y_obs_lo <- plsr_data_lo[[t]]
+  
+  x <- plsr_data[, spectral_columns] %>% as.matrix()
+  x_hi <- plsr_data_hi[, spectral_columns] %>% as.matrix()
+  x_lo <- plsr_data_lo[, spectral_columns] %>% as.matrix()
+  
+  # 2) Fit PLSR models for each partition
+  plsr_model_full <- plsr(y_obs ~ x, ncomp = P_DIM, validation = "LOO")
+  plsr_model_hi <- plsr(y_obs_hi ~ x_hi, ncomp = P_DIM, validation = "LOO")
+  plsr_model_lo <- plsr(y_obs_lo ~ x_lo, ncomp = P_DIM, validation = "LOO")
+  
+  nComps_full <- selectNcomp(plsr_model_full, plot = F)
+  
+  # 3) Predict and extract fitted values
+  y_hat_full <- predict(plsr_model_full, x, ncomp = nComps_full) %>% as.vector()
+  y_hat_hi <- predict(plsr_model_hi, x, ncomp = nComps_full) %>% as.vector()
+  y_hat_lo <- predict(plsr_model_lo, x, ncomp = nComps_full) %>% as.vector()
+  
   # Calculate VIP
-  vip_scores <- VIP(plsr_model, opt.comp = nComps)
+  vip_scores_lo <- VIP(plsr_model_lo, opt.comp = nComps)
+  vip_scores_hi <- VIP(plsr_model_hi, opt.comp = nComps)
   
-  vip_df <- data.frame(lambda = as.numeric(names(vip_scores)), VIP = vip_scores)
+  # Combine VIP scores with categorical variable
+  vip_df_lo <- data.frame(lambda = as.numeric(names(vip_scores_lo)),
+                          VIP = vip_scores_lo,
+                          Category = "LO")
   
-  vip_plot <- ggplot(vip_df, aes(x = lambda, y = VIP)) +
-    geom_line(color="steelblue") +
+  vip_df_hi <- data.frame(lambda = as.numeric(names(vip_scores_hi)),
+                          VIP = vip_scores_hi,
+                          Category = "HI")
+  
+  # Combine both dataframes into one
+  vip_df <- rbind(vip_df_lo, vip_df_hi)
+  
+  # Plot with facet wrap by Category
+  vip_plot <- ggplot(vip_df, aes(x = lambda, y = VIP, color = Category)) +
+    geom_line() +
     labs(title = paste("VIP Scores for PLSR Model:", t), x = "lambda", y = "VIP Score") +
     ylim(0, 8) +
-    theme_minimal() #%>% print()
+    facet_wrap(~ Category) +
+    theme_minimal()
   
-  print(vip_plot) # To pdf
+  print(vip_plot)  # To pdf
   
 }
 

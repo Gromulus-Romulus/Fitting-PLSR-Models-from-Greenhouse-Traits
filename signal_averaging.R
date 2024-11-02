@@ -74,7 +74,9 @@ FILTER <- 11
 # Don't include below < 400 and above 2400
 # due to increased noise at range edges
 # Ranges set using SVC i-series Field Spectroscopy guide
-FULL_R = seq(400, 2400, by = .1)
+#   Note: SVC i-series manual says full range goes to 2400,
+#   Nicole says common practice is to cut off at 2500
+FULL_R = seq(400, 2500, by = .1)
 VIS_R = seq(400, 700, by = .1)
 NIR_R = seq(700, 1000, by = .1)
 SWIR_R = seq(1000, 2400, by = .1)

@@ -15,7 +15,7 @@ library(dplyr)
 
 # Assume relationship between leaf reflectance and absorptance
 # R/T ratio is equivalent to R / (1 - R) and (1 - T) / T
-spec_wide <- readRDS("./proc/spec.RDS")
+spec_wide <- read_csv("./data/spec_data_wide.csv")
 
 # Reorder columns
 spec_wide <- spec_wide %>% 

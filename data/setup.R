@@ -38,19 +38,18 @@ names(scans) <- c("barcodeID", "area_cm2")
 mass_data <- merge(mass_data, scans, by = "barcodeID")
 
 # Calculate LMA from Weight and Area Measurements (units = g / m2)
-CONVERSION = 10000 # cm2 to m2
-mass_data$LMA <- ((mass_data$dry_leaf_g) / (mass_data$area_cm2)) * CONVERSION
+mass_data$LMA <- ((mass_data$dry_leaf_g) / (mass_data$area_cm2)) * (100^2)
 
 # Calculate EWT from weight and Area Measurements (units = g / m2)
-mass_data$EWT <- ((mass_data$wet_leaf_g - mass_data$dry_leaf_g) / (mass_data$area_cm2)) * CONVERSION
+mass_data$EWT <- ((mass_data$wet_leaf_g - mass_data$dry_leaf_g) / (mass_data$area_cm2)) * (100^2)
 
 # Load Fluorometry Data from Porometer and Rename Columns
 # Use Fs and Fm' to Calculate Quantum Yield of Fluorescence
 # Merge Porometer Measurements with Data Afterwards
 #   Source: https://www.licor.com/env/products/LI-600/
 fluor <- read_csv("./fluor/fluor_data.csv") %>%
-  select(c(unique_id, gsw, Fs, `Fm'`, PhiPS2))
-names(fluor) <- c("barcodeID", "gsw", "Fs", "Fm_prime", "Phi_PS2")
+  select(c(unique_id, gsw, Fs, `Fm'`, PhiPS2, ETR, Qamb, VPleaf))
+names(fluor) <- c("barcodeID", "gsw", "Fs", "Fm_prime", "Phi_PS2", "ETR", "Qamb", "vpdl")
 
 # Write traits (only those of interest) data to R data file.
 # Also merge measured traits with LI-COR fluorometry data
@@ -59,8 +58,8 @@ traits <- mass_data |>
          "sampleID",
          "treatment_mmol",
          "species",
-         "dry_whole_g",
-         "LDMC", "LMA", "EWT", "area_cm2") %>%
+         "dry_whole_g", "dry_leaf_g", "area_cm2",
+         "LDMC", "LMA", "EWT") %>%
   merge(fluor, by="barcodeID")
 
 # Remove duplicate values

@@ -17,8 +17,7 @@
 
 library(dplyr)
 library(tidyverse)
-library(rcartocolor)
-library(MetBrewer)
+library(RColorBrewer)
 
 # - - - - - 
 # Read in input files and remove "date" column
@@ -35,13 +34,20 @@ colnames(spectra_wide)[5:ncol(spectra_wide)] <- gsub("X", "", spec_names)
 
 # - - - - - 
 # Categorize treatments into "LO" and "HI" based on set threshold for mmol
-THRESHOLD <- 15
+# Create a new column for aggregated treatment levels
 spectra_long <- spectra_long %>%
-  mutate(treatment_category = ifelse(treatment_mmol <= THRESHOLD, "LO", "HI"))
+  mutate(treatment_level = case_when(
+    treatment_mmol <= 5 ~ "0 - 5 mmol",
+    treatment_mmol <= 15 ~ "10 - 15 mmol",
+    treatment_mmol <= 25 ~ "20 - 25 mmol",
+    treatment_mmol <= 35 ~ "30 - 35 mmol",
+    TRUE ~ "Other"  # Optional: catch any values above 35
+  ))
+
 
 # - - - - -
 # Average measurements per-species and treatment
-per_species_treatment <- spectra_long %>% group_by(species, treatment_category, wavelength) %>% 
+per_species_treatment <- spectra_long %>% group_by(species, treatment_level, wavelength) %>% 
   summarize(mean_r = mean(reflectance),
             sd_r = sd(reflectance),
             n = n(),
@@ -58,27 +64,29 @@ SWIR = seq(1000, 2400, by = .1)
 
 spectra_long <- spectra_long %>%
   mutate(wave_type = case_when(
-    wavelength %in% FULL ~ "Full",
     wavelength %in% VIS ~ "Visible",
     wavelength %in% NIR ~ "NIR",
     wavelength %in% SWIR ~ "SWIR"
   ))
 
 # - - - - -
-# Helper function for making spectral plots
-spectra_plot <- function(data) {
-  ggplot(data, aes(x = wavelength, color = treatment_category, fill = treatment_category)) +
-    geom_ribbon(aes(ymin = 100*(mean_r - 2*se_r), ymax = 100*(mean_r + 2*se_r), fill = treatment_category), 
+# Helper function for making spectral plots with four treatment levels
+spectra_plot <- ggplot(per_species_treatment, aes(x = wavelength, color = treatment_level, fill = treatment_level)) +
+    geom_ribbon(aes(ymin = 100 * (mean_r - 2 * se_r), ymax = 100 * (mean_r + 2 * se_r)), 
                 alpha = 0.3, color = NA) +
-    geom_line(aes(y = 100*mean_r), linewidth = 0.75) +  # Thicker lines for better visibility
+    geom_line(aes(y = 100 * mean_r), linewidth = 0.75) +  # Thicker lines for better visibility
     ylab("% Reflectance") + 
     xlab("Wavelength (nm)") +
-    scale_fill_manual(name = "Treatment Category", 
-                      values = c("LO" = "darkgrey", "HI" = "red"),
-                      labels = c("LO" = "low (0 - 10 mmol)", "HI" = "high (15 - 35 mmol)")) +
-    scale_color_manual(name = "Treatment Category", 
-                       values = c("LO" = "darkgrey", "HI" = "red"),
-                       labels = c("LO" = "low (0 - 10 mmol)", "HI" = "high (15 - 35 mmol)")) +
+    scale_fill_manual(name = "Treatment Level", 
+                      values = c("0 - 5 mmol" = "#a8ddb5", 
+                                 "10 - 15 mmol" = "#7fcdbb", 
+                                 "20 - 25 mmol" = "#feb24c", 
+                                 "30 - 35 mmol" = "#bd0026")) +
+    scale_color_manual(name = "Treatment Level", 
+                       values = c("0 - 5 mmol" = "#a8ddb5", 
+                                  "10 - 15 mmol" = "#7fcdbb", 
+                                  "20 - 25 mmol" = "#feb24c", 
+                                  "30 - 35 mmol" = "#bd0026")) +
     theme_minimal() + 
     facet_wrap(~species) +
     theme(
@@ -92,24 +100,12 @@ spectra_plot <- function(data) {
       strip.text = element_text(size = 14, face = "bold.italic"),  # Larger facet labels
       panel.grid.major = element_line(size = 0.5, color = "lightgrey"),  # Subtle major gridlines
       panel.grid.minor = element_line(size = 0.3, color = "lightgrey")   # Subtle minor gridlines
-    )
-}
+)
 
-# Function to filter data by wavelength range and generate the spectral plot
-OUTPUT_DIR <- "figures"
-plot_by_range <- function(data, range_name, wavelength_range) {
-  data_filtered <- data %>% filter(wavelength %in% wavelength_range)
-  
-  plot <- spectra_plot(data_filtered) +
-    ggtitle(paste("Spectral Plot -", range_name))  # Adding a title for each plot
-  
-  # Save plot to a PDF file
-  ggsave(filename = paste0(OUTPUT_DIR, "/", "spectral_plot_", range_name, ".pdf"), 
-         plot = plot, device = "pdf", width = 10, height = 6)
-}
+# Save spectral Plot
+ggsave(filename = "./figures/spectral_plot.pdf", 
+       plot = spectra_plot, device = "pdf", width = 10, height = 6)
 
-# Iterate through the ranges and create plots
-plot_by_range(per_species_treatment, "FULL", FULL)
-plot_by_range(per_species_treatment, "VIS", VIS)
-plot_by_range(per_species_treatment, "NIR", NIR)
-plot_by_range(per_species_treatment, "SWIR", SWIR)
+# Show in plot viewer
+print(spectra_plot)
+
